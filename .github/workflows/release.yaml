@@ -13,24 +13,36 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false   # 🚨 防止一个平台失败导致全部取消
       matrix:
         goos: [linux, windows, darwin]
         goarch: [amd64, arm64]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Go
+      # 🚨 关闭 setup-go 自带 cache（修复 tar 解压失败）
+      - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
+          cache: false
 
-      # 🚨 关键修复：禁用 CGO
+      # 🚨 手动稳定 cache（可选但推荐）
+      - name: Cache Go Modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ matrix.goos }}-${{ matrix.goarch }}-${{ hashFiles('**/go.sum') }}
+
       - name: Build Binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0
+          CGO_ENABLED: 0   # 🚨 关键：避免生成 ELF 伪装 Windows
         run: |
           BINARY_NAME=moyu-${GOOS}-${GOARCH}
 
@@ -41,17 +53,16 @@ jobs:
           echo "Building for $GOOS/$GOARCH"
           go env
 
-          go build -ldflags="-s -w" -o "$BINARY_NAME" main.go
+          go build -trimpath -ldflags="-s -w -buildid=" -o "$BINARY_NAME" main.go
 
           echo "Built: $BINARY_NAME"
 
-      # ✅ 验证文件类型（防止再出 ELF 伪装）
+      # ✅ 验证文件真实格式（防止再出现 ELF Windows）
       - name: Verify Binary Type
         run: |
           ls -lh
           file moyu-${{ matrix.goos }}-${{ matrix.goarch }}*
 
-      # 🚨 不再使用 GITHUB_ENV 避免覆盖
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
