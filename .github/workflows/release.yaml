@@ -3,16 +3,17 @@ name: Release MoyuShuang
 on:
   push:
     tags:
-      - 'v*' # 当推送 v1.0.0, v0.1.2 等标签时触发
+      - 'v*'
+
 permissions:
-  contents: write  # 允许创建 Release 并上传文件
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     strategy:
       matrix:
-        # 定义需要交叉编译的目标平台
         goos: [linux, windows, darwin]
         goarch: [amd64, arm64]
 
@@ -24,21 +25,37 @@ jobs:
         with:
           go-version: '1.21'
 
+      # 🚨 关键修复：禁用 CGO
       - name: Build Binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
         run: |
-          BINARY_NAME=moyu-${{ matrix.goos }}-${{ matrix.goarch }}
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            BINARY_NAME="$BINARY_NAME.exe"
-          fi
-          go build -o "$BINARY_NAME" main.go
-          echo "BINARY_PATH=$BINARY_NAME" >> $GITHUB_ENV
+          BINARY_NAME=moyu-${GOOS}-${GOARCH}
 
+          if [ "$GOOS" = "windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+
+          echo "Building for $GOOS/$GOARCH"
+          go env
+
+          go build -ldflags="-s -w" -o "$BINARY_NAME" main.go
+
+          echo "Built: $BINARY_NAME"
+
+      # ✅ 验证文件类型（防止再出 ELF 伪装）
+      - name: Verify Binary Type
+        run: |
+          ls -lh
+          file moyu-${{ matrix.goos }}-${{ matrix.goarch }}*
+
+      # 🚨 不再使用 GITHUB_ENV 避免覆盖
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.BINARY_PATH }}
+          files: |
+            moyu-${{ matrix.goos }}-${{ matrix.goarch }}*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
