@@ -22,7 +22,7 @@
 可以直接下载预编译的二进制文件，也可以通过编译源代码来安装。
 
 ### 1. 直接下载
-在 [Releases](https://github.com/jojenh/moyu/releases) 页面下载适合你操作系统的二进制文件。
+在 [Releases](https://github.com/JoJenH/MoyuShuang/releases) 页面下载适合你操作系统的二进制文件。
 
 ### 2. 编译源代码
 确保你已安装 Go 环境 ($>= 1.18$)，执行以下命令：
