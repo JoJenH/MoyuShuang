@@ -44,7 +44,7 @@ go build -o MoyuShuang main.go
 ### 2. 高级启动（使用真实日志伪装）
 如果你想让界面看起来更像是在处理特定的工作，可以传入一个包含真实日志的文件，就像：
 ```bash
-./MoyuShuang novel.txt my_project_build.log
+./MoyuShuang novel.txt moyu.log
 ```
 ## 🎮 控制指令
 ### 📖 阅读控制
