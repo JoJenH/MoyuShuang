@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
-      fail-fast: false   # 🚨 防止一个平台失败导致全部取消
+      fail-fast: false
       matrix:
         goos: [linux, windows, darwin]
         goarch: [amd64, arm64]
@@ -22,27 +22,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 🚨 关闭 setup-go 自带 cache（修复 tar 解压失败）
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-          cache: false
-
-      # 🚨 手动稳定 cache（可选但推荐）
-      - name: Cache Go Modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: go-${{ matrix.goos }}-${{ matrix.goarch }}-${{ hashFiles('**/go.sum') }}
+          cache: false   # 🚨 明确关闭
 
       - name: Build Binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0   # 🚨 关键：避免生成 ELF 伪装 Windows
+          CGO_ENABLED: 0
         run: |
           BINARY_NAME=moyu-${GOOS}-${GOARCH}
 
@@ -55,9 +45,6 @@ jobs:
 
           go build -trimpath -ldflags="-s -w -buildid=" -o "$BINARY_NAME" main.go
 
-          echo "Built: $BINARY_NAME"
-
-      # ✅ 验证文件真实格式（防止再出现 ELF Windows）
       - name: Verify Binary Type
         run: |
           ls -lh
