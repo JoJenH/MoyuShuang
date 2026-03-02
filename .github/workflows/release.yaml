@@ -25,12 +25,11 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-          cache: false # 如果之前有 tar 报错，建议先关闭缓存
+          cache: false
 
       - name: Build
         shell: bash
         env:
-          # 🚨 关键：显式设置这些变量，Go 编译器才会执行交叉编译
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0 
@@ -40,16 +39,14 @@ jobs:
             BINARY_NAME="$BINARY_NAME.exe"
           fi
           
-          # 获取当前时间（UTC）
+          # 动态获取构建元数据
           BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-          # 获取简短提交哈希
           GIT_SHA=$(echo ${GITHUB_SHA} | cut -c1-7)
-          # 获取 Tag 版本号
           VERSION=${{ github.ref_name }}
 
-          echo "正在编译版本 $VERSION..."
+          echo "正在编译 $GOOS/$GOARCH 版本 $VERSION..."
           
-          # 🚨 关键：使用 -X 注入变量到 main 包
+          # 注入版本号、提交哈希和构建时间
           go build -trimpath \
             -ldflags="-s -w \
             -X 'main.Version=$VERSION' \
@@ -63,13 +60,13 @@ jobs:
           name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
           path: MoyuShuang-*
 
-  # 第二阶段：汇总并随机生成发布日志
+  # 第二阶段：汇总文件并生成随机 Release 日志
   publish:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Download All Artifacts
-        uses: download-artifact@v4
+        uses: actions/download-artifact@v4  # 修正路径：添加了 actions/ 前缀
         with:
           path: ./dist
           pattern: binaries-*
@@ -77,8 +74,9 @@ jobs:
 
       - name: Generate Random Release Note
         id: notes
+        shell: bash
         run: |
-          # 预设骚话数组
+          # 工业级骚话库
           desc=(
             "🌶️ 优化了红油配比算法，全局爽度提升 15.4%。"
             "🥢 修复了模拟毛肚在极端高压下的挂汁率塌陷 Bug。"
@@ -92,6 +90,12 @@ jobs:
             "🔗 升级了魔芋精粉纯度检测算子，自动过滤低质量纤维。"
             "🚀 提升了“爽度”数据上传至云端分析中心的并发吞吐量。"
             "🧠 优化了伪装日志的随机演进算法，迷惑性提升 200%。"
+            "💾 修复了在读取超大文件时模拟磁头物理寻道的假死现象。"
+            "🌡️ 动态调整了热收缩包装机的温控曲线，防止数据包过热。"
+            "🎭 强化了状态栏的混淆算法，使其与系统后台日志特征完全一致。"
+            "🛰️ 增强了远程同步逻辑，确保在弱网环境下依然维持“摸鱼”状态。"
+            "🧬 重组了调味包分配策略，解决了特定场景下口感过咸的问题。"
+            "🔋 优化了虚拟生产线的能耗比，通过算法减少了 CPU 模拟发热。"
           )
           titles=(
             "指标增强包"
@@ -101,19 +105,19 @@ jobs:
             "工业级稳定性修复"
             "口感模拟驱动更新"
             "高压挤压逻辑优化"
+            "核心配方校准版本"
           )
           
-          # 随机抽取 3 条描述（增加到 3 条让内容更丰满）
+          # 随机抽取 3 条描述
           RAND_DESC1=${desc[$RANDOM % ${#desc[@]}]}
           RAND_DESC2=${desc[$RANDOM % ${#desc[@]}]}
           RAND_DESC3=${desc[$RANDOM % ${#desc[@]}]}
           RAND_TITLE=${titles[$RANDOM % ${#titles[@]}]}
           
-          # 简单去重
+          # 简单去重逻辑
           while [ "$RAND_DESC1" == "$RAND_DESC2" ]; do RAND_DESC2=${desc[$RANDOM % ${#desc[@]}]}; done
           while [ "$RAND_DESC3" == "$RAND_DESC1" ] || [ "$RAND_DESC3" == "$RAND_DESC2" ]; do RAND_DESC3=${desc[$RANDOM % ${#desc[@]}]}; done
 
-          # 写入输出
           echo "title=$RAND_TITLE" >> $GITHUB_OUTPUT
           {
             echo "body<<EOF"
