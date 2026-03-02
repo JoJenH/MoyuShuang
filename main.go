@@ -23,6 +23,10 @@ type Progress struct {
 }
 
 var (
+	Version   = "v0.0.0-dev"
+	GitCommit = "none"
+	BuildTime = "unknown"
+
 	dynamicLogs = []string{
 		"[INFO] 初始化：魔芋爽全自动工业产线 (Build: 0.9.5-SPICY)",
 		"[DEBUG] 压力检测：螺旋挤压机压力处于 150Mpa，符合《爽学》标准",
@@ -38,8 +42,8 @@ var (
 	}
 
 	helpDocs = []string{
-		"SYSDIAG(8)                System Diagnostics Manual               SYSDIAG(8)",
 		"NAME: MoyuShuang - Wojiuwen Ni Mode Shuang Bu'shuang",
+		fmt.Sprintf("VERSION: %s, GIT_COMMIT: %s, BUILD_TIME: %s", Version, GitCommit, BuildTime),
 		"",
 		"CONTROLS:",
 		"  j, MouseLeft, MouseDown   : Step forward (Next line)",

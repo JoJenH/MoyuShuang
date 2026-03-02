@@ -40,9 +40,22 @@ jobs:
             BINARY_NAME="$BINARY_NAME.exe"
           fi
           
-          echo "正在为 $GOOS/$GOARCH 编译..."
-          # -trimpath 隐藏路径信息，-s -w 压缩体积并移除调试符号
-          go build -trimpath -ldflags="-s -w" -o "$BINARY_NAME" main.go
+          # 获取当前时间（UTC）
+          BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          # 获取简短提交哈希
+          GIT_SHA=$(echo ${GITHUB_SHA} | cut -c1-7)
+          # 获取 Tag 版本号
+          VERSION=${{ github.ref_name }}
+
+          echo "正在编译版本 $VERSION..."
+          
+          # 🚨 关键：使用 -X 注入变量到 main 包
+          go build -trimpath \
+            -ldflags="-s -w \
+            -X 'main.Version=$VERSION' \
+            -X 'main.GitCommit=$GIT_SHA' \
+            -X 'main.BuildTime=$BUILD_DATE'" \
+            -o "$BINARY_NAME" main.go
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
