@@ -1,0 +1,16 @@
+[INFO]  Initializing build environment...
+[DEBUG] GOOS: linux, GOARCH: amd64, CGO_ENABLED: 0
+[INFO]  Checking source code integrity...
+[DEBUG] Found main.go, go.mod, go.sum
+[INFO]  --- Starting compilation matrix ---
+[INFO]  Building target: windows/amd64
+[DEBUG] Executing: go build -trimpath -ldflags="-s -w" -o MoyuShuang-windows-amd64.exe
+[INFO]  Successfully generated: MoyuShuang-windows-amd64.exe
+[INFO]  Building target: darwin/arm64
+[DEBUG] Executing: go build -trimpath -ldflags="-s -w" -o MoyuShuang-darwin-arm64
+[INFO]  Successfully generated: MoyuShuang-darwin-arm64
+[INFO]  --- Compilation matrix completed ---
+[DEBUG] Calculating SHA256 checksums for all binaries...
+[INFO]  Uploading assets to GitHub Release v1.0.0...
+[DEBUG] API Request: POST /repos/JoJenH/MoyuShuang/releases/assets
+[INFO]  Release process finished successfully.

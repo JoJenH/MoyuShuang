@@ -225,23 +225,27 @@ func drawUI(currentLine int, lines []string) {
 	if isHelpMode {
 		statusY = h - len(helpDocs) - 2
 	}
-
-	statusLine := fmt.Sprintf("--- STATE: RUNNING | Mo-Shuang Scale: %d%% | ID: %d/%d ", (currentLine+1)*100/len(lines), currentLine+1, len(lines))
-	if isBossMode {
-		statusLine = "--- STATE: SUSPENDED (KERNEL_WAIT) ---"
-	}
-	drawText(0, statusY, statusLine, termbox.ColorBlue, termbox.ColorDefault)
+	statusLine := fmt.Sprintf("--- STATE: RUNNING | Mo-Shuang Scale: %d%% | ID: %d/%d ",
+		(currentLine+1)*100/len(lines), currentLine+1, len(lines))
 
 	// 3. 底部指令/阅读区
 	if isBossMode {
+		statusLine = fmt.Sprintf("--- STATE: IDLE | Mo-Shuang Scale: %d%% | ID: %d/%d ",
+			(currentLine+1)*100/len(lines), currentLine+1, len(lines))
 		drawText(0, h-1, ">> [IDLE] Awaiting SIGCONT...", termbox.ColorDarkGray, termbox.ColorDefault)
 	} else if isHelpMode {
 		for i, doc := range helpDocs {
+			statusLine = fmt.Sprintf("--- STATE: HELP | Mo-Shuang Scale: %d%% | ID: %d/%d ",
+				(currentLine+1)*100/len(lines), currentLine+1, len(lines))
 			drawText(0, h-len(helpDocs)+i, doc, termbox.ColorGreen, termbox.ColorDefault)
 		}
 	} else if isSearching {
+		statusLine = fmt.Sprintf("--- STATE: SEARCH | Mo-Shuang Scale: %d%% | ID: %d/%d ",
+			(currentLine+1)*100/len(lines), currentLine+1, len(lines))
 		drawText(0, h-1, "GREP_SCAN: /"+searchQuery, termbox.ColorYellow|termbox.AttrBold, termbox.ColorDefault)
 	} else if isJumping {
+		statusLine = fmt.Sprintf("--- STATE: JUMP | Mo-Shuang Scale: %d%% | ID: %d/%d ",
+			(currentLine+1)*100/len(lines), currentLine+1, len(lines))
 		drawText(0, h-1, "ADDR_JUMP: "+jumpQuery, termbox.ColorMagenta|termbox.AttrBold, termbox.ColorDefault)
 	} else {
 		for i := 0; i < viewHeight; i++ {
@@ -251,6 +255,7 @@ func drawUI(currentLine int, lines []string) {
 			}
 		}
 	}
+	drawText(0, statusY, statusLine, termbox.ColorBlue, termbox.ColorDefault)
 
 	termbox.SetCursor(w-1, h-1)
 	termbox.Flush()
