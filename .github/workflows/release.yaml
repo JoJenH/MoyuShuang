@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  # 第一部分：并发编译
+  # 第一阶段：并行交叉编译所有平台的二进制文件
   build:
     runs-on: ubuntu-latest
     strategy:
@@ -20,27 +20,37 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-          cache: false
+          cache: false # 如果之前有 tar 报错，建议先关闭缓存
 
       - name: Build
         shell: bash
+        env:
+          # 🚨 关键：显式设置这些变量，Go 编译器才会执行交叉编译
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0 
         run: |
-          EXT=""
-          if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; fi
-          OUT_NAME="MoyuShuang-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}"
-          go build -trimpath -ldflags="-s -w" -o "$OUT_NAME" main.go
+          BINARY_NAME="MoyuShuang-${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            BINARY_NAME="$BINARY_NAME.exe"
+          fi
           
-      # 暂存编译好的文件，不在这里发布
+          echo "正在为 $GOOS/$GOARCH 编译..."
+          # -trimpath 隐藏路径信息，-s -w 压缩体积并移除调试符号
+          go build -trimpath -ldflags="-s -w" -o "$BINARY_NAME" main.go
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
           path: MoyuShuang-*
 
-  # 第二部分：统一发布（只运行一次）
+  # 第二阶段：汇总所有文件并统一发布（避免 API 冲突）
   publish:
     needs: build
     runs-on: ubuntu-latest
@@ -48,16 +58,17 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
-          path: ./all-binaries
+          path: ./dist
           pattern: binaries-*
           merge-multiple: true
-
-      - name: Display files
-        run: ls -R ./all-binaries
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./all-binaries/moyu-*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: ./dist/*
+          body: |
+            ## 🥢 MoyuShuang 指标增强包
+            本版本显著提升了系统的平均爽度。
+            - 🌶️ 优化了红油配比算法
+            - 🥢 增强了切片数据流的稳定性
+          token: ${{ secrets.GITHUB_TOKEN }}
