@@ -23,7 +23,6 @@ type Progress struct {
 }
 
 var (
-	// 内置硬核伪装日志
 	dynamicLogs = []string{
 		"[INFO] 初始化：魔芋爽全自动工业产线 (Build: 0.9.5-SPICY)",
 		"[DEBUG] 压力检测：螺旋挤压机压力处于 150Mpa，符合《爽学》标准",
@@ -38,22 +37,20 @@ var (
 		"[DEBUG] 检测到周边存在“老板”异常干扰信号，自动切换至静默运行模式...",
 	}
 
-	// 精确的手册说明
 	helpDocs = []string{
 		"SYSDIAG(8)                System Diagnostics Manual               SYSDIAG(8)",
 		"NAME: MoyuShuang - Wojiuwen Ni Mode Shuang Bu'shuang",
 		"",
 		"CONTROLS:",
-		"  j, MouseLeft, MouseDown   : Step forward in data stream (Next line)",
-		"  k, MouseUp     : Step backward in data stream (Prev line)",
-		"  Space     : Toggle BOSS_MODE (Immediate UI suspension)",
-		"  /, G           : Search metadata / Jump to line offset",
-		"  n, N           : Navigate through search matches",
-		"  +, -           : Resize dynamic kernel buffer height",
-		"  h, ?           : Show/Hide this diagnostic manual",
-		"  Q              : Terminate daemon and sync state to cache",
-		"",
-		"NOTES: \"Moyushuang\" is a unit for measuring the degree of \"Shuang\".",
+		"  j, MouseLeft, MouseDown   : Step forward (Next line)",
+		"  k, MouseUp                : Step backward (Prev line)",
+		"  Space                     : Toggle BOSS_MODE (Immediately hide content)",
+		"  /, G                      : Search metadata / Jump to line offset",
+		"  n, N                      : Navigate results (Locked until search)",
+		"  +, -                      : Resize reading buffer height",
+		"  h, ?                      : Show/Hide this manual",
+		"  Esc                       : Clear Search & Highlights / Reset Mode",
+		"  Q                         : Terminate daemon and sync state",
 	}
 
 	isSearching, isJumping, isHelpMode, searchActive, isBossMode = false, false, false, false, false
@@ -71,7 +68,6 @@ func main() {
 		return
 	}
 
-	// 路径标准化：防止同文件多路径导致的进度冲突
 	rawPath, _ := filepath.Abs(os.Args[1])
 	if realPath, err := filepath.EvalSymlinks(rawPath); err == nil {
 		bookPath = realPath
@@ -123,13 +119,21 @@ func main() {
 				}
 			}
 		case termbox.EventKey:
-			// Boss 键拥有最高优先级
 			if ev.Key == termbox.KeySpace {
 				isBossMode = !isBossMode
-				isHelpMode, isSearching, isJumping = false, false, false
+				isHelpMode, isSearching, isJumping, searchActive = false, false, false, false
 				continue
 			}
 			if isBossMode {
+				continue
+			}
+
+			// Esc 一键重置：清理搜索词、结果集、跳转锁、高亮
+			if ev.Key == termbox.KeyEsc {
+				isHelpMode, isSearching, isJumping, searchActive = false, false, false, false
+				searchQuery = ""
+				lastSearchQuery = ""
+				searchResults = []int{}
 				continue
 			}
 
@@ -157,7 +161,7 @@ func main() {
 					currentLine--
 				}
 			case '/':
-				isSearching, searchQuery, isHelpMode = true, "", false
+				isSearching, searchQuery, isHelpMode, searchActive = true, "", false, false
 			case 'G':
 				isJumping, jumpQuery, isHelpMode = true, "", false
 			case 'n':
@@ -179,13 +183,8 @@ func main() {
 					viewHeight--
 				}
 			}
-
-			if ev.Key == termbox.KeyEsc {
-				isHelpMode, isSearching, isJumping, searchActive = false, false, false, false
-			}
 		}
 
-		// 翻页带动日志演进
 		if currentLine != oldLine {
 			if rand.Intn(10) < 4 {
 				logOffset++
@@ -198,70 +197,133 @@ func drawUI(currentLine int, lines []string) {
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 	w, h := termbox.Size()
 
-	// 1. 日志区渲染
 	logAreaH := h - viewHeight - 3
 	if isHelpMode {
 		logAreaH = h - len(helpDocs) - 3
 	}
 
+	// 1. 渲染伪装日志
 	for i := 0; i < logAreaH; i++ {
 		lIdx := (i + logOffset) % len(dynamicLogs)
 		content := dynamicLogs[lIdx]
-
 		fg := termbox.ColorCyan
 		if strings.Contains(content, "[WARN]") {
 			fg = termbox.ColorYellow
-		} else if strings.Contains(content, "[ERROR]") {
+		}
+		if strings.Contains(content, "[ERROR]") {
 			fg = termbox.ColorRed
-		} else if strings.Contains(content, "[DEBUG]") {
+		}
+		if strings.Contains(content, "[DEBUG]") {
 			fg = termbox.ColorDarkGray
 		}
-
 		drawText(0, i, content, fg, termbox.ColorDefault)
 	}
 
-	// 2. 状态分隔行
+	// 2. 状态行构建
 	statusY := h - viewHeight - 2
 	if isHelpMode {
 		statusY = h - len(helpDocs) - 2
 	}
-	statusLine := fmt.Sprintf("--- STATE: RUNNING | Mo-Shuang Scale: %d%% | ID: %d/%d ",
-		(currentLine+1)*100/len(lines), currentLine+1, len(lines))
 
-	// 3. 底部指令/阅读区
+	state := "RUNNING"
+	statuColor := termbox.ColorBlue
 	if isBossMode {
-		statusLine = fmt.Sprintf("--- STATE: IDLE | Mo-Shuang Scale: %d%% | ID: %d/%d ",
-			(currentLine+1)*100/len(lines), currentLine+1, len(lines))
+		state = "IDLE"
+		statuColor = termbox.ColorDarkGray
+	} else if isHelpMode {
+		state = "HELP"
+		statuColor = termbox.ColorGreen
+	} else if isSearching {
+		state = "SEARCH"
+		statuColor = termbox.ColorYellow
+	} else if isJumping {
+		state = "JUMP"
+		statuColor = termbox.ColorMagenta
+	}
+	searchStatus := ""
+	if searchActive && len(searchResults) > 0 {
+		state = "SEARCH"
+		statuColor = termbox.ColorYellow
+		searchStatus = fmt.Sprintf("| [MATCH: %d/%d] ", matchIndex+1, len(searchResults))
+	}
+	statusLine := fmt.Sprintf("--- STATE: %s %s| Mo-Shuang: %d%% | ID: %d/%d ",
+		state, searchStatus, (currentLine+1)*100/len(lines), currentLine+1, len(lines))
+
+	// 3. 阅读区渲染 (带高亮逻辑)
+	if isBossMode {
 		drawText(0, h-1, ">> [IDLE] Awaiting SIGCONT...", termbox.ColorDarkGray, termbox.ColorDefault)
 	} else if isHelpMode {
 		for i, doc := range helpDocs {
-			statusLine = fmt.Sprintf("--- STATE: HELP | Mo-Shuang Scale: %d%% | ID: %d/%d ",
-				(currentLine+1)*100/len(lines), currentLine+1, len(lines))
 			drawText(0, h-len(helpDocs)+i, doc, termbox.ColorGreen, termbox.ColorDefault)
 		}
 	} else if isSearching {
-		statusLine = fmt.Sprintf("--- STATE: SEARCH | Mo-Shuang Scale: %d%% | ID: %d/%d ",
-			(currentLine+1)*100/len(lines), currentLine+1, len(lines))
 		drawText(0, h-1, "GREP_SCAN: /"+searchQuery, termbox.ColorYellow|termbox.AttrBold, termbox.ColorDefault)
 	} else if isJumping {
-		statusLine = fmt.Sprintf("--- STATE: JUMP | Mo-Shuang Scale: %d%% | ID: %d/%d ",
-			(currentLine+1)*100/len(lines), currentLine+1, len(lines))
 		drawText(0, h-1, "ADDR_JUMP: "+jumpQuery, termbox.ColorMagenta|termbox.AttrBold, termbox.ColorDefault)
 	} else {
 		for i := 0; i < viewHeight; i++ {
 			idx := currentLine + i
 			if idx < len(lines) {
-				drawText(0, h-viewHeight+i, ">> "+lines[idx], termbox.ColorBlack|termbox.AttrBold, termbox.ColorDefault)
+				// 使用高亮渲染函数
+				drawHighligthedText(0, h-viewHeight+i, ">> "+lines[idx], termbox.ColorBlack|termbox.AttrBold, termbox.ColorDefault)
 			}
 		}
 	}
-	drawText(0, statusY, statusLine, termbox.ColorBlue, termbox.ColorDefault)
 
+	drawText(0, statusY, statusLine, statuColor, termbox.ColorDefault)
 	termbox.SetCursor(w-1, h-1)
 	termbox.Flush()
 }
 
-// --- 核心工具函数 ---
+// 高亮渲染核心函数
+func drawHighligthedText(x, y int, str string, fg, bg termbox.Attribute) {
+	w, _ := termbox.Size()
+	currX := x
+
+	if !searchActive || lastSearchQuery == "" {
+		drawText(x, y, str, fg, bg)
+		return
+	}
+
+	lowerStr := strings.ToLower(str)
+	lowerQuery := strings.ToLower(lastSearchQuery)
+	runes := []rune(str)
+	queryRunes := []rune(lastSearchQuery)
+	queryLen := len(queryRunes)
+
+	lastIdx := 0
+	for {
+		// 寻找字节位置并转换为 rune 索引
+		matchIdx := strings.Index(lowerStr[lastIdx:], lowerQuery)
+		if matchIdx == -1 {
+			renderSegment(runes[len([]rune(str[:lastIdx])):], &currX, y, fg, bg, w)
+			break
+		}
+
+		absMatchIdx := lastIdx + matchIdx
+		matchStartRune := len([]rune(str[:absMatchIdx]))
+
+		// 渲染匹配前的部分
+		renderSegment(runes[len([]rune(str[:lastIdx])):matchStartRune], &currX, y, fg, bg, w)
+		// 渲染匹配的高亮部分 (红色背景或红色文字)
+		renderSegment(runes[matchStartRune:matchStartRune+queryLen], &currX, y, termbox.ColorRed|termbox.AttrBold, bg, w)
+
+		lastIdx = absMatchIdx + len(string(queryRunes))
+		if lastIdx >= len(str) {
+			break
+		}
+	}
+}
+
+func renderSegment(seg []rune, currX *int, y int, fg, bg termbox.Attribute, maxW int) {
+	for _, r := range seg {
+		if *currX >= maxW-1 {
+			break
+		}
+		termbox.SetCell(*currX, y, r, fg, bg)
+		*currX += runewidth.RuneWidth(r)
+	}
+}
 
 func drawText(x, y int, str string, fg, bg termbox.Attribute) {
 	w, _ := termbox.Size()
@@ -327,7 +389,7 @@ func handleSearchInput(ev termbox.Event, currentLine *int, lines []string) {
 			}
 		}
 	} else if ev.Key == termbox.KeyEsc {
-		isSearching = false
+		isSearching, searchActive = false, false
 	} else if ev.Key == termbox.KeyBackspace || ev.Key == termbox.KeyBackspace2 {
 		if len(searchQuery) > 0 {
 			searchQuery = searchQuery[:len(searchQuery)-1]
