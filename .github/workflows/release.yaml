@@ -63,25 +63,74 @@ jobs:
           name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
           path: MoyuShuang-*
 
-  # 第二阶段：汇总所有文件并统一发布（避免 API 冲突）
+  # 第二阶段：汇总并随机生成发布日志
   publish:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: download-artifact@v4
         with:
           path: ./dist
           pattern: binaries-*
           merge-multiple: true
 
+      - name: Generate Random Release Note
+        id: notes
+        run: |
+          # 预设骚话数组
+          desc=(
+            "🌶️ 优化了红油配比算法，全局爽度提升 15.4%。"
+            "🥢 修复了模拟毛肚在极端高压下的挂汁率塌陷 Bug。"
+            "📦 增强了切片数据流的工业级稳定性，减少 0.3ms 延迟。"
+            "🔥 引入了卫龙 2.0 秘制协议，全面兼容多种辣条封装格式。"
+            "🛡️ 自动拦截非计划辣条侵入，系统已进入静默运行模式。"
+            "🧪 经过实验室检测，Q弹系数已强制对齐《爽学》3.0 标准。"
+            "💨 重构了二氧化碳注入逻辑，模拟毛肚缝隙感更贴合硬件。"
+            "📉 优化了内核内存占用，在 BOSS 进入扫描范围时响应更快。"
+            "⚙️ 校准了螺旋挤压机压力传感器，消除 0.01% 的模拟抖动。"
+            "🔗 升级了魔芋精粉纯度检测算子，自动过滤低质量纤维。"
+            "🚀 提升了“爽度”数据上传至云端分析中心的并发吞吐量。"
+            "🧠 优化了伪装日志的随机演进算法，迷惑性提升 200%。"
+          )
+          titles=(
+            "指标增强包"
+            "全自动产线补丁"
+            "爽度维护更新"
+            "静默生产套件"
+            "工业级稳定性修复"
+            "口感模拟驱动更新"
+            "高压挤压逻辑优化"
+          )
+          
+          # 随机抽取 3 条描述（增加到 3 条让内容更丰满）
+          RAND_DESC1=${desc[$RANDOM % ${#desc[@]}]}
+          RAND_DESC2=${desc[$RANDOM % ${#desc[@]}]}
+          RAND_DESC3=${desc[$RANDOM % ${#desc[@]}]}
+          RAND_TITLE=${titles[$RANDOM % ${#titles[@]}]}
+          
+          # 简单去重
+          while [ "$RAND_DESC1" == "$RAND_DESC2" ]; do RAND_DESC2=${desc[$RANDOM % ${#desc[@]}]}; done
+          while [ "$RAND_DESC3" == "$RAND_DESC1" ] || [ "$RAND_DESC3" == "$RAND_DESC2" ]; do RAND_DESC3=${desc[$RANDOM % ${#desc[@]}]}; done
+
+          # 写入输出
+          echo "title=$RAND_TITLE" >> $GITHUB_OUTPUT
+          {
+            echo "body<<EOF"
+            echo "## 🥢 MoyuShuang $RAND_TITLE"
+            echo "本版本通过调整底层参数，显著提升了系统的平均爽度与伪装成功率。"
+            echo "- $RAND_DESC1"
+            echo "- $RAND_DESC2"
+            echo "- $RAND_DESC3"
+            echo ""
+            echo "> **Note:** 请在确保周边环境安全（无 BOSS 信号干扰）的情况下部署此更新。"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: ./dist/*
-          body: |
-            ## 🥢 MoyuShuang 指标增强包
-            本版本显著提升了系统的平均爽度。
-            - 🌶️ 优化了红油配比算法
-            - 🥢 增强了切片数据流的稳定性
+          name: "MoyuShuang ${{ github.ref_name }} (${{ steps.notes.outputs.title }})"
+          body: ${{ steps.notes.outputs.body }}
           token: ${{ secrets.GITHUB_TOKEN }}
